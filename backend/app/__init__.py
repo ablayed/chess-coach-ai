@@ -1,0 +1,1 @@
+"""ChessCoach AI backend package."""

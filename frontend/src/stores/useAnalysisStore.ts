@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import { api, ApiError } from "@/lib/api";
-import { connectAnalysisStream, type AnalysisStreamPayload, type SSEClient } from "@/lib/sse";
+import { subscribeToAnalysis, type AnalysisStreamPayload, type SSECleanup } from "@/lib/sse";
 import type { AnalyzeResponse, CoachRequest, CoachResponse, PositionConcepts } from "@/types/api";
 
 interface AnalysisState {
@@ -11,7 +11,7 @@ interface AnalysisState {
   isLoadingCoaching: boolean;
   streamingDepth: number;
   error: string | null;
-  streamClient: SSEClient | null;
+  sseCleanup: SSECleanup | null;
   analyzePosition: (fen: string, depth?: number, numLines?: number) => Promise<void>;
   getCoaching: (payload: CoachRequest) => Promise<void>;
   clearAnalysis: () => void;
@@ -56,24 +56,26 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
   isLoadingCoaching: false,
   streamingDepth: 0,
   error: null,
-  streamClient: null,
+  sseCleanup: null,
 
   analyzePosition: async (fen, depth = 20, numLines = 3) => {
-    const current = get().streamClient;
-    current?.close();
+    const prevCleanup = get().sseCleanup;
+    if (prevCleanup) {
+      prevCleanup();
+    }
 
     set({
       isAnalyzing: true,
       streamingDepth: 0,
       error: null,
       coaching: null,
-      streamClient: null,
+      sseCleanup: null,
     });
 
-    const streamClient = connectAnalysisStream({
+    const cleanup = subscribeToAnalysis(
       fen,
       depth,
-      onMessage: (payload) => {
+      (payload) => {
         set((state) => ({
           streamingDepth: payload.depth,
           currentAnalysis: state.currentAnalysis
@@ -101,36 +103,29 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
             : streamPayloadToAnalysis(fen, payload),
         }));
       },
-      onError: (message) => {
-        set({ error: message });
+      () => {
+        set({ isAnalyzing: false });
+        void api
+          .post<AnalyzeResponse>("/api/v1/analyze", { fen, depth, num_lines: numLines })
+          .then((full) => set({ currentAnalysis: full, error: null, streamingDepth: depth }))
+          .catch((err: unknown) => {
+            const message = err instanceof ApiError ? err.detail : "Failed to fetch final analysis";
+            set({ error: message });
+          });
       },
-    });
+      (error) => {
+        set({ isAnalyzing: false, error: error.message });
+        void api
+          .post<AnalyzeResponse>("/api/v1/analyze", { fen, depth, num_lines: numLines })
+          .then((full) => set({ currentAnalysis: full, error: null, streamingDepth: depth }))
+          .catch((err: unknown) => {
+            const message = err instanceof ApiError ? err.detail : "Analysis failed";
+            set({ error: message });
+          });
+      },
+    );
 
-    set({ streamClient });
-
-    try {
-      const response = await api.post<AnalyzeResponse>("/api/v1/analyze", {
-        fen,
-        depth,
-        num_lines: numLines,
-      });
-
-      set({
-        currentAnalysis: response,
-        isAnalyzing: false,
-        streamingDepth: depth,
-        error: null,
-      });
-    } catch (error: unknown) {
-      const message = error instanceof ApiError ? error.detail : "Analysis failed";
-      set({
-        isAnalyzing: false,
-        error: message,
-      });
-    } finally {
-      streamClient.close();
-      set({ streamClient: null });
-    }
+    set({ sseCleanup: cleanup });
   },
 
   getCoaching: async (payload) => {
@@ -145,8 +140,10 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
   },
 
   clearAnalysis: () => {
-    const streamClient = get().streamClient;
-    streamClient?.close();
+    const cleanup = get().sseCleanup;
+    if (cleanup) {
+      cleanup();
+    }
     set({
       isAnalyzing: false,
       currentAnalysis: null,
@@ -154,7 +151,7 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
       isLoadingCoaching: false,
       streamingDepth: 0,
       error: null,
-      streamClient: null,
+      sseCleanup: null,
     });
   },
 }));

@@ -225,6 +225,50 @@ async def _load_source_text(
     raise RuntimeError(f"unknown_source_type:{source_type}")
 
 
+async def download_books(include_pdf: bool = False) -> dict[str, int]:
+    """Pre-download configured book sources to local storage."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    stats = {"downloaded": 0, "skipped": 0, "failures": 0}
+    book_sources = [
+        source
+        for source in all_sources(include_pdf=include_pdf)
+        if source.get("type") in {"gutenberg", "archive"}
+    ]
+
+    print(f"Preparing downloads for {len(book_sources)} book sources...")
+    for source in book_sources:
+        title = source.get("title", "Unknown source")
+        filepath = _source_filepath(source)
+
+        if source.get("format") == "pdf" and not include_pdf:
+            print(f"  {title}: skipped (PDF source disabled)")
+            stats["skipped"] += 1
+            continue
+
+        if local_file_is_usable(str(filepath)):
+            print(f"  {title}: already downloaded")
+            stats["skipped"] += 1
+            continue
+
+        try:
+            if source.get("type") == "gutenberg":
+                text = await download_gutenberg(source["url"], str(filepath))
+            else:
+                text = await download_archive_djvu(source["url"], str(filepath))
+            if len(text) < MIN_TEXT_CHARS:
+                print(f"  {title}: downloaded but too short ({len(text)} chars)")
+                stats["failures"] += 1
+                continue
+            print(f"  {title}: downloaded ({len(text)} chars)")
+            stats["downloaded"] += 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"  {title}: download failed ({exc})")
+            stats["failures"] += 1
+
+    return stats
+
+
 async def ingest_all(
     force_reprocess: bool = False,
     include_pdf: bool = False,
@@ -236,6 +280,7 @@ async def ingest_all(
 
     stats: dict[str, int] = {
         "sources": 0,
+        "books": 0,
         "chunks": 0,
         "embeddings": 0,
         "failures": 0,
@@ -331,6 +376,7 @@ async def ingest_all(
                 await db.commit()
 
             stats["sources"] += 1
+            stats["books"] = stats["sources"]
             stats["chunks"] += inserted_count
             print(f"    Stored {inserted_count} chunks")
 

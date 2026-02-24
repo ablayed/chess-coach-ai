@@ -2,6 +2,7 @@ import io
 import re
 import uuid
 from collections import Counter
+from urllib.parse import urlparse
 
 import chess
 import chess.pgn
@@ -22,22 +23,40 @@ router = APIRouter()
 
 
 def _extract_lichess_game_id(url: str) -> str:
-    pattern = re.compile(r"(?:https?://)?(?:www\.)?lichess\.org/(?:game/)?([a-zA-Z0-9]{8})(?:/\w+)?")
-    match = pattern.search(url.strip())
-    if not match:
+    raw = url.strip()
+    parsed = urlparse(raw if "://" in raw else f"https://{raw}")
+
+    if "lichess.org" not in parsed.netloc:
+        raise ValueError("URL is not a lichess.org link")
+
+    parts = [part for part in parsed.path.rstrip("/").split("/") if part]
+    if not parts:
         raise ValueError("Invalid Lichess URL")
-    return match.group(1)
+
+    game_id = parts[-1]
+    if game_id in {"white", "black"} and len(parts) >= 2:
+        game_id = parts[-2]
+    game_id = game_id.split("?")[0]
+
+    if not re.match(r"^[A-Za-z0-9]{8,12}$", game_id):
+        raise ValueError(f"Invalid Lichess game ID: {game_id}")
+    return game_id
 
 
-async def _fetch_lichess_pgn(game_id: str) -> str:
-    export_url = f"https://lichess.org/game/export/{game_id}"
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.get(export_url, headers={"Accept": "application/x-chess-pgn"})
-        response.raise_for_status()
-        text = response.text.strip()
-        if not text:
+async def fetch_lichess_pgn(url: str) -> str:
+    """Extract Lichess game ID from URL and return exported PGN text."""
+    game_id = _extract_lichess_game_id(url)
+    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+        response = await client.get(
+            f"https://lichess.org/game/export/{game_id}",
+            headers={"Accept": "application/x-chess-pgn"},
+        )
+        if response.status_code != 200:
+            raise ValueError(f"Could not fetch game from Lichess (status {response.status_code})")
+        pgn = response.text.strip()
+        if not pgn:
             raise ValueError("Empty PGN from Lichess")
-        return text
+        return pgn
 
 
 def _evaluation_to_cp(eval_payload: dict) -> float:
@@ -67,7 +86,7 @@ async def review_game(
     if request.lichess_url:
         try:
             lichess_id = _extract_lichess_game_id(request.lichess_url)
-            pgn_text = await _fetch_lichess_pgn(lichess_id)
+            pgn_text = await fetch_lichess_pgn(request.lichess_url)
             source = "lichess"
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Failed to import Lichess game: {exc}") from exc

@@ -12,65 +12,36 @@ export interface AnalysisStreamPayload {
   nodes: number;
 }
 
-interface ConnectAnalysisStreamOptions {
-  fen: string;
-  depth: number;
-  onMessage: (payload: AnalysisStreamPayload) => void;
-  onDone?: () => void;
-  onError?: (message: string) => void;
-  reconnect?: boolean;
-}
+export type SSECleanup = () => void;
 
-export interface SSEClient {
-  close: () => void;
-  readonly readyState: number;
-}
+export function subscribeToAnalysis(
+  fen: string,
+  depth: number,
+  onData: (data: AnalysisStreamPayload) => void,
+  onDone: () => void,
+  onError: (error: Error) => void,
+): SSECleanup {
+  const url = `${API_BASE_URL}/api/v1/analyze/stream?fen=${encodeURIComponent(fen)}&depth=${depth}`;
+  const eventSource = new EventSource(url);
 
-export function connectAnalysisStream(options: ConnectAnalysisStreamOptions): SSEClient {
-  const { fen, depth, onMessage, onDone, onError, reconnect = true } = options;
-  let attempts = 0;
-  let closed = false;
-  let source: EventSource | null = null;
+  eventSource.addEventListener("analysis", (event: MessageEvent) => {
+    try {
+      const payload = JSON.parse(event.data) as AnalysisStreamPayload;
+      onData(payload);
+    } catch {
+      onError(new Error("Failed to parse analysis stream payload"));
+    }
+  });
 
-  const connect = (): void => {
-    const url = `${API_BASE_URL}/api/v1/analyze/stream?fen=${encodeURIComponent(fen)}&depth=${depth}`;
-    source = new EventSource(url);
+  eventSource.addEventListener("done", () => {
+    onDone();
+    eventSource.close();
+  });
 
-    source.onmessage = (event) => {
-      try {
-        const parsed = JSON.parse(event.data) as AnalysisStreamPayload;
-        onMessage(parsed);
-      } catch {
-        onError?.("Invalid stream payload received.");
-      }
-    };
-
-    source.addEventListener("done", () => {
-      onDone?.();
-    });
-
-    source.onerror = () => {
-      if (closed) {
-        return;
-      }
-      onError?.("Analysis stream disconnected.");
-      source?.close();
-      if (reconnect && attempts < 2) {
-        attempts += 1;
-        setTimeout(connect, 800 * attempts);
-      }
-    };
+  eventSource.onerror = () => {
+    onError(new Error("SSE connection error"));
+    eventSource.close();
   };
 
-  connect();
-
-  return {
-    close: () => {
-      closed = true;
-      source?.close();
-    },
-    get readyState() {
-      return source?.readyState ?? EventSource.CLOSED;
-    },
-  };
+  return () => eventSource.close();
 }

@@ -32,7 +32,7 @@ class RAGService:
         concept_filter = ""
         params: dict[str, object] = {"embedding": embedding_literal, "top_k": top_k}
         if concepts:
-            concept_filter = "AND concepts && CAST(:concepts AS TEXT[])"
+            concept_filter = "AND concepts && CAST(:concepts AS VARCHAR[])"
             params["concepts"] = concepts
 
         sql = text(

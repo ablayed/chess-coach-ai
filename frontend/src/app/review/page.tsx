@@ -88,7 +88,7 @@ export default function ReviewPage() {
                   </p>
                   <p>Best move: {selectedMove.best_move}</p>
                   <p>
-                    Eval: {selectedMove.evaluation_before.toFixed(1)} -> {selectedMove.evaluation_after.toFixed(1)}
+                    Eval: {selectedMove.evaluation_before.toFixed(1)} {"->"} {selectedMove.evaluation_after.toFixed(1)}
                   </p>
                   <p>Classification: {selectedMove.classification}</p>
                   <p>Critical: {selectedMove.is_critical ? "Yes" : "No"}</p>

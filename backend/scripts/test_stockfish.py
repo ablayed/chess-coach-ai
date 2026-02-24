@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 
 import chess
 
-from app.config import settings
-from app.core.stockfish_pool import StockfishPool
-
-
 async def main() -> None:
+    from app.config import settings
+    from app.core.stockfish_pool import StockfishPool
+
+    path = settings.STOCKFISH_PATH or shutil.which("stockfish")
+    if not path:
+        print("Stockfish path not found. Set STOCKFISH_PATH in backend/.env")
+        return
+    print(f"Using Stockfish at: {path}")
+
     fen = chess.STARTING_FEN
     pool = StockfishPool(
-        path=settings.STOCKFISH_PATH,
+        path=path,
         pool_size=1,
         hash_mb=min(settings.STOCKFISH_HASH_MB, 64),
         threads=settings.STOCKFISH_THREADS,

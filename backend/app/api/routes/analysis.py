@@ -95,8 +95,8 @@ async def analyze_stream(
     async def event_generator():
         yield "retry: 2500\n\n"
         async for payload in pool.analyze_stream(normalized_fen, depth=depth):
-            yield f"data: {json.dumps(payload)}\n\n"
-        yield "event: done\ndata: {}\n\n"
+            yield f"event: analysis\ndata: {json.dumps(payload)}\n\n"
+        yield f"event: done\ndata: {json.dumps({'final': True})}\n\n"
 
     return StreamingResponse(
         event_generator(),

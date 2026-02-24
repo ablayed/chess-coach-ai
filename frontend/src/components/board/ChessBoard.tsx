@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PieceSymbol, SQUARES, Square } from "chess.js";
 
 import { guessPromotion } from "@/lib/chess-utils";
@@ -20,7 +20,10 @@ interface ChessBoardProps {
 }
 
 function findCheckedKingSquare(fen: string, sideToMove: "w" | "b"): Square | null {
-  const boardPart = fen.split(" ")[0];
+  const boardPart = fen.split(" ")[0] ?? "";
+  if (!boardPart) {
+    return null;
+  }
   const ranks = boardPart.split("/");
   const king = sideToMove === "w" ? "K" : "k";
 
@@ -71,20 +74,20 @@ export function ChessBoard({ interactive = true, bestMoveOverride, onMovePlayed 
   }, []);
 
   const bestMove = bestMoveOverride ?? currentAnalysis?.best_moves[0]?.move ?? null;
-  const bestArrow = useMemo(() => {
+  const bestArrow = useMemo<Array<[Square, Square]>>(() => {
     if (!bestMove || bestMove.length < 4) {
-      return [] as Array<[Square, Square, string]>;
+      return [] as Array<[Square, Square]>;
     }
     const from = bestMove.slice(0, 2) as Square;
     const to = bestMove.slice(2, 4) as Square;
     if (!SQUARES.includes(from) || !SQUARES.includes(to)) {
-      return [] as Array<[Square, Square, string]>;
+      return [] as Array<[Square, Square]>;
     }
-    return [[from, to, "rgba(34, 197, 94, 0.9)"]];
+    return [[from, to]];
   }, [bestMove]);
 
   const customSquareStyles = useMemo(() => {
-    const styles: Record<Square, CSSProperties> = {};
+    const styles: Record<string, Record<string, string | number>> = {};
     const last = moveHistory[currentMoveIndex];
 
     if (last) {

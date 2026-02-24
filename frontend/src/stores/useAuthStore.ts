@@ -50,15 +50,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     const userRaw = localStorage.getItem(USER_KEY);
 
     if (!token || !userRaw) {
+      api.setToken(null);
       set({ initialized: true, user: null, token: null });
       return;
     }
 
     try {
       const user = JSON.parse(userRaw) as UserPublic;
+      api.setToken(token);
       set({ token, user, initialized: true });
     } catch {
       clearPersistedAuth();
+      api.setToken(null);
       set({ token: null, user: null, initialized: true });
     }
   },
@@ -70,6 +73,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const response = await api.post<AuthResponse>("/api/v1/auth/login", payload);
       persistAuth(response.access_token, response.user);
+      api.setToken(response.access_token);
       set({
         isLoading: false,
         token: response.access_token,
@@ -90,6 +94,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const response = await api.post<AuthResponse>("/api/v1/auth/register", payload);
       persistAuth(response.access_token, response.user);
+      api.setToken(response.access_token);
       set({
         isLoading: false,
         token: response.access_token,
@@ -105,6 +110,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     clearPersistedAuth();
+    api.setToken(null);
     set({ user: null, token: null, error: null });
   },
 }));

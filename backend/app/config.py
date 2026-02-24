@@ -1,3 +1,7 @@
+import os
+import platform
+import shutil
+
 from pydantic_settings import BaseSettings
 
 
@@ -16,7 +20,7 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_HOURS: int = 72
 
     # Stockfish
-    STOCKFISH_PATH: str = "/usr/games/stockfish"
+    STOCKFISH_PATH: str = ""
     STOCKFISH_DEPTH: int = 20
     STOCKFISH_HASH_MB: int = 128
     STOCKFISH_THREADS: int = 1
@@ -28,6 +32,32 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",")]
+
+    def model_post_init(self, __context) -> None:  # type: ignore[override]
+        if self.STOCKFISH_PATH:
+            return
+
+        discovered = shutil.which("stockfish")
+        if discovered:
+            self.STOCKFISH_PATH = discovered
+            return
+
+        if platform.system() == "Windows":
+            candidates = [
+                os.path.expanduser(r"~\stockfish\stockfish-windows-x86-64-avx2.exe"),
+                os.path.expanduser(r"~\stockfish\stockfish.exe"),
+                r"C:\stockfish\stockfish.exe",
+                r"C:\stockfish\stockfish\stockfish-windows-x86-64-avx2.exe",
+                "stockfish.exe",
+            ]
+            for candidate in candidates:
+                if os.path.exists(candidate):
+                    self.STOCKFISH_PATH = candidate
+                    return
+            self.STOCKFISH_PATH = "stockfish.exe"
+            return
+
+        self.STOCKFISH_PATH = "/usr/games/stockfish"
 
     class Config:
         env_file = ".env"

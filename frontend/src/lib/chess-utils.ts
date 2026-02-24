@@ -14,7 +14,7 @@ export function validateFen(fen: string): boolean {
 export function parseLichessGameId(input: string): string | null {
   const pattern = /(?:https?:\/\/)?(?:www\.)?lichess\.org\/(?:game\/)?([a-zA-Z0-9]{8})(?:\/\w+)?/;
   const match = input.trim().match(pattern);
-  return match ? match[1] : null;
+  return match?.[1] ?? null;
 }
 
 export function normalizeEvalToWhiteCp(evaluation: Evaluation): number {
@@ -93,21 +93,23 @@ export function getCapturedPieces(board: Chess): { white: string[]; black: strin
       continue;
     }
     const key = `${piece.color}${piece.type}` as keyof typeof counts;
-    counts[key] += 1;
+    if (Object.prototype.hasOwnProperty.call(counts, key)) {
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
   }
 
   const missingWhite: string[] = [];
   const missingBlack: string[] = [];
 
   (Object.keys(START_COUNTS) as Array<keyof typeof START_COUNTS>).forEach((type) => {
-    const whiteMissing = START_COUNTS[type] - counts[`w${type}`];
-    const blackMissing = START_COUNTS[type] - counts[`b${type}`];
+    const whiteMissing = (START_COUNTS[type] ?? 0) - (counts[`w${type}`] ?? 0);
+    const blackMissing = (START_COUNTS[type] ?? 0) - (counts[`b${type}`] ?? 0);
 
     for (let i = 0; i < whiteMissing; i += 1) {
-      missingWhite.push(PIECE_SYMBOLS[`w${type}`]);
+      missingWhite.push(PIECE_SYMBOLS[`w${type}`] ?? "?");
     }
     for (let i = 0; i < blackMissing; i += 1) {
-      missingBlack.push(PIECE_SYMBOLS[`b${type}`]);
+      missingBlack.push(PIECE_SYMBOLS[`b${type}`] ?? "?");
     }
   });
 

@@ -17,14 +17,21 @@ stockfish_pool: StockfishPool | None = None
 async def lifespan(app: FastAPI):
     global stockfish_pool
     await create_tables()
-    stockfish_pool = StockfishPool(
-        path=settings.STOCKFISH_PATH,
-        pool_size=settings.STOCKFISH_POOL_SIZE,
-        hash_mb=settings.STOCKFISH_HASH_MB,
-        threads=settings.STOCKFISH_THREADS,
-    )
-    await stockfish_pool.start()
-    app.state.stockfish_pool = stockfish_pool
+    stockfish_pool = None
+    try:
+        stockfish_pool = StockfishPool(
+            path=settings.STOCKFISH_PATH,
+            pool_size=settings.STOCKFISH_POOL_SIZE,
+            hash_mb=settings.STOCKFISH_HASH_MB,
+            threads=settings.STOCKFISH_THREADS,
+        )
+        await stockfish_pool.start()
+        app.state.stockfish_pool = stockfish_pool
+        print(f"Stockfish pool started ({settings.STOCKFISH_POOL_SIZE} engines) at: {settings.STOCKFISH_PATH}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Stockfish failed to start: {exc}")
+        print("Analysis endpoints will remain unavailable until STOCKFISH_PATH is fixed.")
+        app.state.stockfish_pool = None
     try:
         yield
     finally:
@@ -58,4 +65,9 @@ app.include_router(games.router, prefix="/api/v1/games", tags=["games"])
 
 @app.get("/health")
 async def health() -> dict[str, int | str]:
-    return {"status": "ok", "stockfish_pool_size": settings.STOCKFISH_POOL_SIZE}
+    stockfish_available = "yes" if getattr(app.state, "stockfish_pool", None) is not None else "no"
+    return {
+        "status": "ok",
+        "stockfish_pool_size": settings.STOCKFISH_POOL_SIZE,
+        "stockfish_available": stockfish_available,
+    }

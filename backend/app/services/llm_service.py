@@ -34,11 +34,14 @@ class LLMService:
 
     async def _call_groq(self, system: str, user: str, max_tokens: int) -> str:
         if not settings.GROQ_API_KEY:
-            raise ValueError("GROQ_API_KEY not set")
+            raise ValueError("GROQ_API_KEY not configured")
 
         resp = await self.client.post(
             "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}"},
+            headers={
+                "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+                "Content-Type": "application/json",
+            },
             json={
                 "model": "llama-3.3-70b-versatile",
                 "messages": [
@@ -49,13 +52,18 @@ class LLMService:
                 "temperature": 0.7,
             },
         )
-        resp.raise_for_status()
+
+        if resp.status_code == 429:
+            raise RuntimeError("Groq rate limited (429)")
+        if resp.status_code != 200:
+            raise RuntimeError(f"Groq returned {resp.status_code}: {resp.text[:300]}")
+
         data = resp.json()
         return data["choices"][0]["message"]["content"]
 
     async def _call_gemini(self, system: str, user: str, max_tokens: int) -> str:
         if not settings.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY not set")
+            raise ValueError("GEMINI_API_KEY not configured")
 
         resp = await self.client.post(
             (
@@ -68,19 +76,23 @@ class LLMService:
                 "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.7},
             },
         )
-        resp.raise_for_status()
+        if resp.status_code == 429:
+            raise RuntimeError("Gemini rate limited (429)")
+        if resp.status_code != 200:
+            raise RuntimeError(f"Gemini returned {resp.status_code}: {resp.text[:300]}")
         data = resp.json()
         return data["candidates"][0]["content"]["parts"][0]["text"]
 
     async def _call_openrouter(self, system: str, user: str, max_tokens: int) -> str:
         if not settings.OPENROUTER_API_KEY:
-            raise ValueError("OPENROUTER_API_KEY not set")
+            raise ValueError("OPENROUTER_API_KEY not configured")
 
         resp = await self.client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
                 "HTTP-Referer": "https://chesscoach-ai.pages.dev",
+                "Content-Type": "application/json",
             },
             json={
                 "model": "meta-llama/llama-3.3-70b-instruct:free",
@@ -91,7 +103,10 @@ class LLMService:
                 "max_tokens": max_tokens,
             },
         )
-        resp.raise_for_status()
+        if resp.status_code == 429:
+            raise RuntimeError("OpenRouter rate limited (429)")
+        if resp.status_code != 200:
+            raise RuntimeError(f"OpenRouter returned {resp.status_code}: {resp.text[:300]}")
         data = resp.json()
         return data["choices"][0]["message"]["content"]
 

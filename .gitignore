@@ -17,6 +17,7 @@ build/
 
 # Data
 backend/data/books/*.txt
+backend/data/books/*.zst
 
 # IDE
 .vscode/

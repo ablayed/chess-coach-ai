@@ -10,14 +10,29 @@ FastAPI backend for ChessCoach AI, providing:
 ## Local Run
 
 1. Copy `.env.example` to `.env` and fill values.
-2. Install dependencies:
-   ```bash
+2. Create and activate a Python 3.14 virtual environment:
+   ```powershell
+   cd C:\Users\diaab\chess-coach-ai\backend
+   py -3.14 -m venv venv
+   venv\Scripts\activate
+   ```
+3. Install dependencies:
+   ```powershell
    pip install -r requirements.txt
    ```
-3. Run server:
-   ```bash
+4. Run server:
+   ```powershell
    uvicorn app.main:app --reload --port 7860
    ```
+
+For every new backend terminal session:
+
+```powershell
+cd C:\Users\diaab\chess-coach-ai\backend
+venv\Scripts\activate
+```
+
+If activation worked, your prompt starts with `(venv)`.
 
 ## Ingest Book Embeddings
 

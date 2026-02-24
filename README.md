@@ -57,6 +57,27 @@ flowchart LR
 Frontend: `http://localhost:3000`  
 Backend: `http://localhost:7860`
 
+## Local Backend (venv, Python 3.14)
+
+From a terminal:
+
+```powershell
+cd C:\Users\diaab\chess-coach-ai\backend
+py -3.14 -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 7860
+```
+
+For every new backend terminal session, always start with:
+
+```powershell
+cd C:\Users\diaab\chess-coach-ai\backend
+venv\Scripts\activate
+```
+
+If activation worked, your prompt starts with `(venv)`.
+
 ## API Documentation
 
 FastAPI docs: `http://localhost:7860/docs`

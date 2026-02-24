@@ -2,15 +2,22 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sentence_transformers import SentenceTransformer
 
-_model = SentenceTransformer("all-MiniLM-L6-v2")
+_model: SentenceTransformer | None = None
 
 
 class RAGService:
     """Retrieve relevant chess book passages from pgvector."""
 
     @staticmethod
+    def _get_model() -> SentenceTransformer:
+        global _model
+        if _model is None:
+            _model = SentenceTransformer("all-MiniLM-L6-v2")
+        return _model
+
+    @staticmethod
     def embed(text_input: str) -> list[float]:
-        return _model.encode(text_input).tolist()
+        return RAGService._get_model().encode(text_input).tolist()
 
     @staticmethod
     async def retrieve(

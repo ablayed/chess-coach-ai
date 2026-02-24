@@ -3,9 +3,8 @@
 import asyncio
 from pathlib import Path
 
-import httpx
-
-from app.rag.ingest import BOOKS
+from app.rag.downloaders import download_archive_djvu, download_gutenberg, local_file_is_usable
+from app.rag.sources import all_sources
 
 
 async def main() -> None:
@@ -13,17 +12,20 @@ async def main() -> None:
     books_dir = base_dir / "data" / "books"
     books_dir.mkdir(parents=True, exist_ok=True)
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        for book in BOOKS:
-            target = books_dir / book["filename"]
-            if target.exists():
-                print(f"Skipping {book['title']} (already downloaded)")
-                continue
-            print(f"Downloading {book['title']}...")
-            response = await client.get(book["url"])
-            response.raise_for_status()
-            target.write_text(response.text, encoding="utf-8")
-            print(f"Saved {target}")
+    sources = [src for src in all_sources(include_pdf=False) if src.get("type") in {"gutenberg", "archive"}]
+    for source in sources:
+        target_name = source.get("filename") or f"{source.get('title', 'book').lower().replace(' ', '_')}.txt"
+        target = books_dir / target_name
+        if local_file_is_usable(str(target)):
+            print(f"Skipping {source['title']} (already downloaded)")
+            continue
+
+        print(f"Downloading {source['title']}...")
+        if source.get("type") == "gutenberg":
+            await download_gutenberg(source["url"], str(target))
+        elif source.get("type") == "archive":
+            await download_archive_djvu(source["url"], str(target))
+        print(f"Saved {target}")
 
 
 if __name__ == "__main__":

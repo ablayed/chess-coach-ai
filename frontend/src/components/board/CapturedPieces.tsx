@@ -1,5 +1,6 @@
 "use client";
 
+import { Chess } from "chess.js";
 import { useMemo } from "react";
 
 import { Card } from "@/components/ui/Card";
@@ -7,9 +8,16 @@ import { getCapturedPieces } from "@/lib/chess-utils";
 import { useGameStore } from "@/stores/useGameStore";
 
 export function CapturedPieces() {
-  const chess = useGameStore((state) => state.chess);
+  const fen = useGameStore((state) => state.fen);
 
-  const captured = useMemo(() => getCapturedPieces(chess), [chess]);
+  const captured = useMemo(() => {
+    try {
+      const board = new Chess(fen);
+      return getCapturedPieces(board);
+    } catch {
+      return { white: [], black: [] };
+    }
+  }, [fen]);
 
   return (
     <Card className="space-y-3">

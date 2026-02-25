@@ -4,6 +4,7 @@ import json
 import chess
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_stockfish_pool
@@ -35,7 +36,14 @@ async def analyze_position(
 
     fen = board.fen()
     fen_hash = _fen_hash(fen)
-    cached = await db.get(AnalysisCache, fen_hash)
+    cached: AnalysisCache | None = None
+    cache_available = True
+
+    try:
+        cached = await db.get(AnalysisCache, fen_hash)
+    except SQLAlchemyError:
+        cache_available = False
+        await db.rollback()
 
     stockfish_result: dict
     if (
@@ -44,8 +52,12 @@ async def analyze_position(
         and cached.depth is not None
         and cached.depth >= request.depth
     ):
-        cached.hit_count += 1
-        await db.commit()
+        if cache_available:
+            try:
+                cached.hit_count += 1
+                await db.commit()
+            except SQLAlchemyError:
+                await db.rollback()
         stockfish_result = cached.stockfish_result
     else:
         stockfish_result = await pool.analyze(
@@ -54,20 +66,24 @@ async def analyze_position(
             multipv=request.num_lines,
             time_limit=6.0,
         )
-        if cached:
-            cached.stockfish_result = stockfish_result
-            cached.depth = request.depth
-            cached.fen = fen
-        else:
-            cached = AnalysisCache(
-                fen_hash=fen_hash,
-                fen=fen,
-                stockfish_result=stockfish_result,
-                depth=request.depth,
-                hit_count=0,
-            )
-            db.add(cached)
-        await db.commit()
+        if cache_available:
+            try:
+                if cached:
+                    cached.stockfish_result = stockfish_result
+                    cached.depth = request.depth
+                    cached.fen = fen
+                else:
+                    cached = AnalysisCache(
+                        fen_hash=fen_hash,
+                        fen=fen,
+                        stockfish_result=stockfish_result,
+                        depth=request.depth,
+                        hit_count=0,
+                    )
+                    db.add(cached)
+                await db.commit()
+            except SQLAlchemyError:
+                await db.rollback()
 
     concepts = extract_concepts(board, stockfish_result)
 

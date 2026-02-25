@@ -2,6 +2,7 @@ import hashlib
 
 import chess
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -35,10 +36,22 @@ async def coach_explain(
     cp_loss = max(0.0, request.evaluation_before - request.evaluation_after) if request.user_move else 0.0
     classification = classify_move(cp_loss)
 
-    cached = await db.get(AnalysisCache, fen_hash)
+    cached: AnalysisCache | None = None
+    cache_available = True
+
+    try:
+        cached = await db.get(AnalysisCache, fen_hash)
+    except SQLAlchemyError:
+        cache_available = False
+        await db.rollback()
+
     if cached and cached.coaching_explanation:
-        cached.hit_count += 1
-        await db.commit()
+        if cache_available:
+            try:
+                cached.hit_count += 1
+                await db.commit()
+            except SQLAlchemyError:
+                await db.rollback()
         return CoachResponse.model_validate(
             {
                 "explanation": cached.coaching_explanation,
@@ -61,19 +74,23 @@ async def coach_explain(
         player_level=request.player_level,
     )
 
-    if cached:
-        cached.coaching_explanation = result["explanation"]
-        cached.book_references = result["book_references"]
-        cached.fen = fen
-    else:
-        cached = AnalysisCache(
-            fen_hash=fen_hash,
-            fen=fen,
-            coaching_explanation=result["explanation"],
-            book_references=result["book_references"],
-            hit_count=0,
-        )
-        db.add(cached)
+    if cache_available:
+        try:
+            if cached:
+                cached.coaching_explanation = result["explanation"]
+                cached.book_references = result["book_references"]
+                cached.fen = fen
+            else:
+                cached = AnalysisCache(
+                    fen_hash=fen_hash,
+                    fen=fen,
+                    coaching_explanation=result["explanation"],
+                    book_references=result["book_references"],
+                    hit_count=0,
+                )
+                db.add(cached)
+            await db.commit()
+        except SQLAlchemyError:
+            await db.rollback()
 
-    await db.commit()
     return CoachResponse.model_validate(result)

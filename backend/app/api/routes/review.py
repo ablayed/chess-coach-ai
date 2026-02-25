@@ -10,12 +10,12 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_optional_user, get_stockfish_pool
+from app.api.deps import get_stockfish_pool
 from app.core.concept_extractor import classify_move, extract_concepts
 from app.core.prompt_templates import GAME_SUMMARY_PROMPT
 from app.core.stockfish_pool import StockfishPool
 from app.db.session import get_db
-from app.models.database import Game, User
+from app.models.database import Game
 from app.models.schemas import ReviewMoveAnalysis, ReviewRequest, ReviewResponse, ReviewSummary
 from app.services.coaching_service import CoachingService, llm_service
 
@@ -77,17 +77,13 @@ async def review_game(
     request: ReviewRequest,
     db: AsyncSession = Depends(get_db),
     pool: StockfishPool = Depends(get_stockfish_pool),
-    current_user: User | None = Depends(get_optional_user),
 ) -> ReviewResponse:
     pgn_text = request.pgn
-    source = "pgn_import"
-    lichess_id: str | None = None
 
     if request.lichess_url:
         try:
-            lichess_id = _extract_lichess_game_id(request.lichess_url)
+            _extract_lichess_game_id(request.lichess_url)
             pgn_text = await fetch_lichess_pgn(request.lichess_url)
-            source = "lichess"
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Failed to import Lichess game: {exc}") from exc
 
@@ -201,32 +197,11 @@ async def review_game(
         overall_coaching=summary_text,
     )
 
-    response_game_id = str(uuid.uuid4())
-    status = "completed_unsaved"
-
-    if current_user:
-        db_game = Game(
-            user_id=current_user.id,
-            pgn=pgn_text,
-            white_player=game.headers.get("White"),
-            black_player=game.headers.get("Black"),
-            player_color=request.player_color,
-            result=game.headers.get("Result"),
-            accuracy=accuracy,
-            summary=summary.model_dump(),
-            moves=[move.model_dump() for move in move_analyses],
-            source=source,
-            lichess_id=lichess_id,
-        )
-        db.add(db_game)
-        await db.commit()
-        await db.refresh(db_game)
-        response_game_id = str(db_game.id)
-        status = "saved"
-
     return ReviewResponse(
-        game_id=response_game_id,
-        status=status,
+        game_id=str(uuid.uuid4()),
+        status="completed_unsaved",
+        player_color=request.player_color,
+        pgn=pgn_text,
         summary=summary,
         moves=move_analyses,
     )
@@ -252,6 +227,8 @@ async def get_review(
     return ReviewResponse(
         game_id=str(game.id),
         status="saved",
+        player_color=game.player_color if game.player_color in {"white", "black"} else "white",
+        pgn=game.pgn,
         summary=summary,
         moves=moves,
     )

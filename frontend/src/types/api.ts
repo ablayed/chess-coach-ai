@@ -90,6 +90,8 @@ export interface ReviewSummary {
 export interface ReviewResponse {
   game_id: string;
   status: string;
+  player_color?: "white" | "black";
+  pgn?: string | null;
   summary: ReviewSummary | null;
   moves: ReviewMoveAnalysis[];
 }
@@ -133,6 +135,14 @@ export interface GameDetail extends GameListItem {
   moves?: Record<string, unknown>[] | null;
   source?: string | null;
   lichess_id?: string | null;
+}
+
+export interface SaveGameRequest {
+  pgn: string;
+  lichess_url?: string;
+  player_color: "white" | "black";
+  summary: ReviewSummary | null;
+  moves: ReviewMoveAnalysis[];
 }
 
 export interface ApiErrorResponse {

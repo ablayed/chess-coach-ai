@@ -49,16 +49,23 @@ export default function HomePage() {
   };
 
   return (
-    <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-4 md:px-6 md:py-6">
-      <h1 className="text-2xl font-semibold text-gray-100">The chess engine that explains the why.</h1>
+    <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 md:px-6">
+      <section className="rounded-xl border border-gray-800 bg-gray-900/70 p-6">
+        <h1 className="text-3xl font-bold text-gray-100">ChessCoach AI</h1>
+        <p className="mt-2 text-lg text-cyan-300">The chess engine that explains the why.</p>
+        <p className="mt-2 text-gray-400">
+          Play a move to get started or import a game for full review.
+        </p>
+      </section>
 
-      <div className="grid gap-4 lg:grid-cols-[56px_minmax(280px,620px)_minmax(260px,1fr)_minmax(260px,1fr)]">
-        <div className="order-2 h-[320px] md:h-[620px] lg:order-1">
-          <EvalBar evaluation={currentAnalysis?.evaluation} />
-        </div>
-
-        <section className="order-1 space-y-3 lg:order-2">
-          <ChessBoard />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.4fr_0.85fr] lg:grid-cols-[minmax(640px,1.7fr)_minmax(220px,0.75fr)_minmax(220px,0.75fr)]">
+        <section className="space-y-3">
+          <div className="grid grid-cols-[44px_1fr] gap-3">
+            <div className="h-full min-h-[320px]">
+              <EvalBar evaluation={currentAnalysis?.evaluation} />
+            </div>
+            <ChessBoard />
+          </div>
           <BoardControls
             onImportPGN={(pgn) => {
               const ok = loadPGN(pgn);
@@ -72,11 +79,16 @@ export default function HomePage() {
           <MoveList />
         </section>
 
-        <section className="order-3">
+        <section className="space-y-4 lg:hidden">
+          <AnalysisPanel />
+          <CoachingPanel onRequestCoaching={() => requestCoaching().catch(() => undefined)} />
+        </section>
+
+        <section className="hidden lg:block">
           <AnalysisPanel />
         </section>
 
-        <section className="order-4">
+        <section className="hidden lg:block">
           <CoachingPanel onRequestCoaching={() => requestCoaching().catch(() => undefined)} />
         </section>
       </div>

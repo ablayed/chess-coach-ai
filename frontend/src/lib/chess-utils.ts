@@ -30,7 +30,10 @@ export function formatEvaluation(evaluation: Evaluation | null | undefined): str
     return "0.0";
   }
   if (evaluation.type === "mate") {
-    return `M${evaluation.value}`;
+    if (evaluation.value === 0) {
+      return "M0";
+    }
+    return `${evaluation.value > 0 ? "+" : "-"}M${Math.abs(evaluation.value)}`;
   }
   return `${evaluation.value >= 0 ? "+" : ""}${(evaluation.value / 100).toFixed(1)}`;
 }
@@ -40,7 +43,8 @@ export function sigmoidFromCp(cp: number): number {
 }
 
 export function guessPromotion(from: Square, to: Square, piece: string): PieceSymbol | undefined {
-  if (piece.toLowerCase() !== "p") {
+  const normalized = piece.toLowerCase();
+  if (!(normalized === "p" || normalized === "wp" || normalized === "bp")) {
     return undefined;
   }
   if (from[1] === "7" && to[1] === "8") {

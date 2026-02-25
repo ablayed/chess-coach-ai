@@ -101,6 +101,8 @@ class ReviewSummary(BaseModel):
 class ReviewResponse(BaseModel):
     game_id: str
     status: str
+    player_color: Literal["white", "black"] = "white"
+    pgn: str | None = None
     summary: ReviewSummary | None
     moves: list[ReviewMoveAnalysis]
 
@@ -156,3 +158,11 @@ class GameDetail(BaseModel):
     source: str | None = None
     lichess_id: str | None = None
     created_at: datetime
+
+
+class SaveGameRequest(BaseModel):
+    pgn: str
+    player_color: Literal["white", "black"] = "white"
+    summary: ReviewSummary | None = None
+    moves: list[ReviewMoveAnalysis] = Field(default_factory=list)
+    lichess_url: str | None = None

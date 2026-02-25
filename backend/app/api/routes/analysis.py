@@ -17,7 +17,9 @@ router = APIRouter()
 
 
 def _fen_hash(fen: str) -> str:
-    return hashlib.sha256(fen.encode("utf-8")).hexdigest()
+    parts = fen.split()
+    core = " ".join(parts[:4]) if len(parts) >= 4 else fen
+    return hashlib.sha256(core.encode("utf-8")).hexdigest()
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
@@ -41,7 +43,6 @@ async def analyze_position(
         and cached.stockfish_result
         and cached.depth is not None
         and cached.depth >= request.depth
-        and cached.fen == fen
     ):
         cached.hit_count += 1
         await db.commit()

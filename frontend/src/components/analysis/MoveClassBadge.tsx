@@ -1,31 +1,25 @@
-import clsx from "clsx";
-
-import { MOVE_CLASS_BADGE } from "@/lib/constants";
-
 interface MoveClassBadgeProps {
   classification: string;
 }
 
-const ICON_MAP: Record<string, string> = {
-  brilliant: "!!",
-  great: "!",
-  good: "=",
-  inaccuracy: "?!",
-  mistake: "?",
-  blunder: "??",
+const CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+  brilliant: { label: "!! BRILLIANT", bg: "bg-cyan-500/20", text: "text-cyan-400" },
+  great: { label: "! GREAT", bg: "bg-green-500/20", text: "text-green-400" },
+  good: { label: "GOOD", bg: "bg-green-400/20", text: "text-green-300" },
+  inaccuracy: { label: "?! INACCURACY", bg: "bg-yellow-500/20", text: "text-yellow-400" },
+  mistake: { label: "? MISTAKE", bg: "bg-orange-500/20", text: "text-orange-400" },
+  blunder: { label: "?? BLUNDER", bg: "bg-red-500/20", text: "text-red-400" },
 };
 
 export function MoveClassBadge({ classification }: MoveClassBadgeProps) {
   const normalized = classification.toLowerCase();
+  const current = CONFIG[normalized] ?? {
+    label: normalized.toUpperCase(),
+    bg: "bg-gray-500/20",
+    text: "text-gray-400",
+  };
+
   return (
-    <span
-      className={clsx(
-        "inline-flex items-center rounded-md border px-2 py-1 text-xs font-semibold uppercase tracking-wide",
-        MOVE_CLASS_BADGE[normalized] ?? "border-gray-600 bg-gray-700 text-gray-200",
-      )}
-    >
-      <span className="mr-1">{ICON_MAP[normalized] ?? "-"}</span>
-      {normalized}
-    </span>
+    <span className={`rounded px-2 py-0.5 text-xs font-bold ${current.bg} ${current.text}`}>{current.label}</span>
   );
 }

@@ -31,11 +31,13 @@ export default function AnalyzePage() {
   const handleSubmitFen = (event: FormEvent) => {
     event.preventDefault();
     setFenError(null);
-    const ok = setFEN(fenInput);
+    const normalizedFen = fenInput.trim();
+    const ok = setFEN(normalizedFen);
     if (!ok) {
       setFenError("Invalid FEN string.");
       return;
     }
+    setFenInput(normalizedFen);
     const nextFen = useGameStore.getState().fen;
     analyzePosition(nextFen).catch(() => undefined);
   };
@@ -60,7 +62,7 @@ export default function AnalyzePage() {
   };
 
   return (
-    <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-4 md:px-6 md:py-6">
+    <main className="mx-auto max-w-7xl space-y-4 px-4 py-6 md:px-6">
       <h1 className="text-2xl font-semibold text-gray-100">Analyze Any Position</h1>
 
       <form onSubmit={handleSubmitFen} className="space-y-2 rounded-xl border border-gray-700 bg-gray-800/60 p-4">
@@ -79,13 +81,14 @@ export default function AnalyzePage() {
         {fenError ? <p className="text-sm text-red-400">{fenError}</p> : null}
       </form>
 
-      <div className="grid gap-4 lg:grid-cols-[56px_minmax(280px,620px)_minmax(260px,1fr)_minmax(260px,1fr)]">
-        <div className="h-[320px] md:h-[620px]">
-          <EvalBar evaluation={currentAnalysis?.evaluation} />
-        </div>
-
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.4fr_0.85fr] lg:grid-cols-[minmax(640px,1.7fr)_minmax(220px,0.75fr)_minmax(220px,0.75fr)]">
         <section className="space-y-3">
-          <ChessBoard />
+          <div className="grid grid-cols-[44px_1fr] gap-3">
+            <div className="h-full min-h-[320px]">
+              <EvalBar evaluation={currentAnalysis?.evaluation} />
+            </div>
+            <ChessBoard />
+          </div>
           <BoardControls
             onImportPGN={(pgn) => {
               const ok = loadPGN(pgn);
@@ -99,11 +102,16 @@ export default function AnalyzePage() {
           <MoveList />
         </section>
 
-        <section>
+        <section className="space-y-4 lg:hidden">
+          <AnalysisPanel />
+          <CoachingPanel onRequestCoaching={() => requestCoaching().catch(() => undefined)} />
+        </section>
+
+        <section className="hidden lg:block">
           <AnalysisPanel />
         </section>
 
-        <section>
+        <section className="hidden lg:block">
           <CoachingPanel onRequestCoaching={() => requestCoaching().catch(() => undefined)} />
         </section>
       </div>

@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useEffect, useMemo, useRef } from "react";
 
 import { MOVE_CLASS_COLORS } from "@/lib/constants";
+import { isTextInputFocused } from "@/lib/dom-utils";
 import { useGameStore } from "@/stores/useGameStore";
 import type { MoveClassMap } from "@/types/chess";
 
@@ -36,10 +37,16 @@ export function MoveList({ classifications }: MoveListProps) {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (isTextInputFocused()) {
+        return;
+      }
+
       if (event.key === "ArrowLeft") {
+        event.preventDefault();
         goBack();
       }
       if (event.key === "ArrowRight") {
+        event.preventDefault();
         goForward();
       }
     };

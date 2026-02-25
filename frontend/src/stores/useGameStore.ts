@@ -78,7 +78,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       workingBoard = rebuildBoard(initialFen, workingHistory, workingHistory.length - 1);
     }
 
-    const move = workingBoard.move({ from, to, promotion });
+    let move: Move | null = null;
+    try {
+      move = workingBoard.move({ from, to, promotion });
+    } catch {
+      return false;
+    }
+
     if (!move) {
       return false;
     }

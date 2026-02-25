@@ -1,114 +1,210 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { GameImport } from "@/components/review/GameImport";
 import { GameSummary } from "@/components/review/GameSummary";
-import { ReviewNav } from "@/components/review/ReviewNav";
-import { ChessBoard } from "@/components/board/ChessBoard";
-import { MoveList } from "@/components/board/MoveList";
-import { Card } from "@/components/ui/Card";
+import { ReviewBoard } from "@/components/review/ReviewBoard";
 import { api, ApiError } from "@/lib/api";
-import { useGameStore } from "@/stores/useGameStore";
-import type { ReviewRequest, ReviewResponse } from "@/types/api";
+import { useAuthStore } from "@/stores/useAuthStore";
+import type { GameDetail, ReviewRequest, ReviewResponse, SaveGameRequest } from "@/types/api";
 
-export default function ReviewPage() {
-  const [review, setReview] = useState<ReviewResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+function ReviewPageContent() {
+  const searchParams = useSearchParams();
+  const [reviewData, setReviewData] = useState<ReviewResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [playerColor, setPlayerColor] = useState<"white" | "black">("white");
+  const [lastPayload, setLastPayload] = useState<ReviewRequest | null>(null);
+  const [estimatedMoves, setEstimatedMoves] = useState<number | null>(null);
+  const [progressMove, setProgressMove] = useState(1);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedGameId, setSavedGameId] = useState<string | null>(null);
 
-  const currentMoveIndex = useGameStore((state) => state.currentMoveIndex);
-  const goBack = useGameStore((state) => state.goBack);
-  const goForward = useGameStore((state) => state.goForward);
-  const goToMove = useGameStore((state) => state.goToMove);
-  const loadMovesFromSan = useGameStore((state) => state.loadMovesFromSan);
+  const user = useAuthStore((state) => state.user);
 
-  const classificationMap = useMemo(() => {
-    if (!review) {
-      return {};
+  useEffect(() => {
+    if (!isLoading) {
+      return;
     }
-    return review.moves.reduce<Record<number, string>>((acc, move) => {
-      acc[move.move_number] = move.classification;
-      return acc;
-    }, {});
-  }, [review]);
 
-  const selectedMove = review?.moves[Math.max(currentMoveIndex, 0)] ?? null;
+    const id = setInterval(() => {
+      setProgressMove((prev) => {
+        if (estimatedMoves) {
+          return Math.min(prev + 1, Math.max(estimatedMoves, 1));
+        }
+        return prev + 1;
+      });
+    }, 900);
+
+    return () => clearInterval(id);
+  }, [estimatedMoves, isLoading]);
+
+  useEffect(() => {
+    const gameId = searchParams.get("gameId");
+    if (!gameId) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    api
+      .get<ReviewResponse>(`/api/v1/review/${gameId}`)
+      .then((response) => {
+        setReviewData(response);
+        setSavedGameId(response.game_id);
+        setPlayerColor(response.player_color ?? "white");
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof ApiError ? err.detail : "Failed to load saved review";
+        setError(message);
+      })
+      .finally(() => setIsLoading(false));
+  }, [searchParams]);
 
   const handleImport = async (payload: ReviewRequest) => {
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
+    setSavedGameId(null);
+    setProgressMove(1);
+    setLastPayload(payload);
+    setPlayerColor(payload.player_color ?? "white");
 
     try {
       const response = await api.post<ReviewResponse>("/api/v1/review/game", payload);
-      setReview(response);
-
-      const sanMoves = response.moves.map((move) => move.move);
-      loadMovesFromSan(sanMoves);
-      goToMove(0);
+      setReviewData(response);
+      if (response.status === "saved") {
+        setSavedGameId(response.game_id);
+      }
     } catch (err: unknown) {
       const message = err instanceof ApiError ? err.detail : "Failed to review game";
       setError(message);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!reviewData || !reviewData.pgn || !lastPayload || isSaving || !user) {
+      return;
+    }
+
+    const payload: SaveGameRequest = {
+      pgn: reviewData.pgn,
+      lichess_url: lastPayload.lichess_url,
+      player_color: playerColor,
+      summary: reviewData.summary,
+      moves: reviewData.moves,
+    };
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      const saved = await api.post<GameDetail>("/api/v1/games", payload);
+      setSavedGameId(saved.id);
+    } catch (err: unknown) {
+      const message = err instanceof ApiError ? err.detail : "Failed to save game";
+      setError(message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
   return (
-    <main className="mx-auto max-w-[1600px] space-y-4 px-4 py-4 md:px-6 md:py-6">
-      <h1 className="text-2xl font-semibold text-gray-100">Game Review</h1>
-      <GameImport onSubmit={handleImport} isLoading={loading} />
+    <main className="mx-auto max-w-7xl px-4 py-8">
+      <h1 className="mb-6 text-2xl font-bold text-gray-100">Game Review</h1>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {!reviewData && !isLoading ? (
+        <GameImport
+          onSubmit={handleImport}
+          isLoading={isLoading}
+          onEstimatedMoves={(count) => setEstimatedMoves(count)}
+        />
+      ) : null}
 
-      {review ? (
+      {isLoading ? (
+        <div className="py-20 text-center">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-cyan-400 border-t-transparent" />
+          <p className="text-gray-300">
+            Analyzing move {progressMove}
+            {estimatedMoves ? ` of ${estimatedMoves}` : ""}...
+          </p>
+          <p className="mt-2 text-sm text-gray-500">This can take 30-60 seconds on full games.</p>
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="mb-6 rounded-lg border border-red-500 bg-red-900/30 p-4">
+          <p className="text-red-300">{error}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setReviewData(null);
+              setSavedGameId(null);
+            }}
+            className="mt-2 text-sm text-red-200 underline"
+          >
+            Try again
+          </button>
+        </div>
+      ) : null}
+
+      {reviewData ? (
         <>
-          {review.summary ? <GameSummary summary={review.summary} /> : null}
+          <GameSummary summary={reviewData.summary} />
+          <ReviewBoard moves={reviewData.moves} playerColor={playerColor} />
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(280px,620px)_minmax(260px,1fr)_minmax(260px,1fr)]">
-            <section className="space-y-3">
-              <ChessBoard interactive={false} bestMoveOverride={selectedMove?.best_move ?? null} />
-              <ReviewNav
-                currentMove={Math.max(currentMoveIndex, 0)}
-                totalMoves={review.moves.length}
-                onFirst={() => goToMove(0)}
-                onBack={goBack}
-                onForward={goForward}
-                onLast={() => goToMove(review.moves.length - 1)}
-              />
-              <MoveList classifications={classificationMap} />
-            </section>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            {user && !savedGameId ? (
+              <button
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={isSaving || !lastPayload}
+                className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500"
+              >
+                {isSaving ? "Saving..." : "Save Analysis"}
+              </button>
+            ) : null}
 
-            <Card className="space-y-3">
-              <h2 className="text-lg font-semibold text-gray-100">Move Analysis</h2>
-              {selectedMove ? (
-                <div className="space-y-2 text-sm text-gray-200">
-                  <p>
-                    Move {selectedMove.move_number}: <span className="font-semibold">{selectedMove.move}</span>
-                  </p>
-                  <p>Best move: {selectedMove.best_move}</p>
-                  <p>
-                    Eval: {selectedMove.evaluation_before.toFixed(1)} {"->"} {selectedMove.evaluation_after.toFixed(1)}
-                  </p>
-                  <p>Classification: {selectedMove.classification}</p>
-                  <p>Critical: {selectedMove.is_critical ? "Yes" : "No"}</p>
-                </div>
-              ) : (
-                <p className="text-sm text-gray-400">Select a move from the list.</p>
-              )}
-            </Card>
+            {savedGameId ? (
+              <Link href={`/review?gameId=${savedGameId}`} className="text-sm text-cyan-300 underline">
+                Saved review #{savedGameId.slice(0, 8)}
+              </Link>
+            ) : null}
 
-            <Card className="space-y-3">
-              <h2 className="text-lg font-semibold text-gray-100">Coaching Note</h2>
-              {selectedMove?.coaching ? (
-                <p className="text-sm leading-relaxed text-gray-200">{selectedMove.coaching}</p>
-              ) : (
-                <p className="text-sm text-gray-400">No coaching note for this move. Critical mistakes include coaching.</p>
-              )}
-            </Card>
+            <button
+              type="button"
+              onClick={() => {
+                setReviewData(null);
+                setSavedGameId(null);
+                setLastPayload(null);
+                setEstimatedMoves(null);
+                setProgressMove(1);
+              }}
+              className="text-sm text-gray-400 underline"
+            >
+              Review another game
+            </button>
           </div>
         </>
       ) : null}
     </main>
+  );
+}
+
+export default function ReviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-7xl px-4 py-8">
+          <div className="rounded-lg border border-gray-700 bg-gray-800 p-6 text-gray-300">Loading review page...</div>
+        </main>
+      }
+    >
+      <ReviewPageContent />
+    </Suspense>
   );
 }

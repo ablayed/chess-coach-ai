@@ -3,7 +3,6 @@
 import { MoveClassBadge } from "@/components/analysis/MoveClassBadge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Loading } from "@/components/ui/Loading";
 import { useAnalysisStore } from "@/stores/useAnalysisStore";
 
 interface CoachingPanelProps {
@@ -14,6 +13,7 @@ export function CoachingPanel({ onRequestCoaching }: CoachingPanelProps) {
   const coaching = useAnalysisStore((state) => state.coaching);
   const isLoadingCoaching = useAnalysisStore((state) => state.isLoadingCoaching);
   const currentAnalysis = useAnalysisStore((state) => state.currentAnalysis);
+  const error = useAnalysisStore((state) => state.error);
 
   return (
     <Card className="h-full space-y-4">
@@ -29,7 +29,22 @@ export function CoachingPanel({ onRequestCoaching }: CoachingPanelProps) {
         </Button>
       </div>
 
-      {isLoadingCoaching ? <Loading label="Generating explanation..." /> : null}
+      {isLoadingCoaching ? (
+        <div className="space-y-2">
+          <div className="h-4 w-3/4 animate-pulse rounded bg-gray-700" />
+          <div className="h-4 w-full animate-pulse rounded bg-gray-700" />
+          <div className="h-4 w-11/12 animate-pulse rounded bg-gray-700" />
+        </div>
+      ) : null}
+
+      {error && !isLoadingCoaching ? (
+        <div className="rounded-lg border border-red-500 bg-red-900/30 p-3">
+          <p className="text-sm text-red-300">{error}</p>
+          <button type="button" onClick={onRequestCoaching} className="mt-2 text-xs text-red-200 underline">
+            Retry coaching
+          </button>
+        </div>
+      ) : null}
 
       {!coaching && !isLoadingCoaching ? (
         <p className="text-sm text-gray-400">Request coaching to get a natural-language explanation of the position.</p>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
+import { isTextInputFocused } from "@/lib/dom-utils";
 
 interface ReviewNavProps {
   currentMove: number;
@@ -40,16 +41,24 @@ export function ReviewNav({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isTextInputFocused()) {
+        return;
+      }
+
       if (event.key === "ArrowLeft") {
+        event.preventDefault();
         onBack();
       }
       if (event.key === "ArrowRight") {
+        event.preventDefault();
         onForward();
       }
       if (event.key === "Home") {
+        event.preventDefault();
         onFirst();
       }
       if (event.key === "End") {
+        event.preventDefault();
         onLast();
       }
     };

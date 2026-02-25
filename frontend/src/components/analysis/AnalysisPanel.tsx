@@ -1,15 +1,17 @@
 "use client";
 
 import { Card } from "@/components/ui/Card";
-import { Loading } from "@/components/ui/Loading";
 import { formatEvaluation } from "@/lib/chess-utils";
 import { useAnalysisStore } from "@/stores/useAnalysisStore";
+import { useGameStore } from "@/stores/useGameStore";
 
 export function AnalysisPanel() {
   const isAnalyzing = useAnalysisStore((state) => state.isAnalyzing);
   const currentAnalysis = useAnalysisStore((state) => state.currentAnalysis);
   const streamingDepth = useAnalysisStore((state) => state.streamingDepth);
   const error = useAnalysisStore((state) => state.error);
+  const analyzePosition = useAnalysisStore((state) => state.analyzePosition);
+  const fen = useGameStore((state) => state.fen);
 
   return (
     <Card className="h-full space-y-4">
@@ -18,8 +20,25 @@ export function AnalysisPanel() {
         <span className="text-xs uppercase tracking-wide text-gray-400">depth {streamingDepth || 0}/20</span>
       </div>
 
-      {isAnalyzing ? <Loading label="Analyzing position..." /> : null}
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {isAnalyzing ? (
+        <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm text-cyan-200">
+          <p className="animate-pulse">Analyzing... Depth {streamingDepth || 1}/20</p>
+        </div>
+      ) : null}
+      {error ? (
+        <div className="rounded-lg border border-red-500 bg-red-900/30 p-3">
+          <p className="text-sm text-red-300">{error}</p>
+          <button
+            type="button"
+            onClick={() => {
+              analyzePosition(fen).catch(() => undefined);
+            }}
+            className="mt-2 text-xs text-red-200 underline"
+          >
+            Retry analysis
+          </button>
+        </div>
+      ) : null}
 
       {currentAnalysis ? (
         <>

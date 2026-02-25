@@ -1,111 +1,121 @@
 # ChessCoach AI
 
-**ChessCoach AI** is a web chess coaching MVP that combines Stockfish engine analysis, chess-book RAG retrieval, and LLM explanations.
+**The chess engine that explains the *why*.**
 
-> Tagline: **"The chess engine that explains the why."**
+ChessCoach AI combines Stockfish engine analysis with chess book knowledge and LLM-powered coaching to explain chess positions in natural language, not just what the best move is, but *why* it is the best move.
+
+![Screenshot](docs/screenshot.png)
+
+## Features
+
+- **Engine Analysis**: Stockfish 18 at depth 20 with multi-PV (top 3 lines)
+- **AI Coaching**: Natural language explanations powered by Groq LLaMA 3.3 70B
+- **RAG Knowledge Base**: 2900+ embedded passages from classic chess books (Capablanca, Nimzowitsch, Lasker, Tarrasch) plus Wikipedia/Wikibooks
+- **Game Review**: Import PGN or Lichess games for full move-by-move analysis with accuracy scoring
+- **Move Classification**: Brilliant, great, good, inaccuracy, mistake, blunder with coaching for critical moments
+- **Position Concepts**: Auto-detect opening/middlegame/endgame, tactical motifs, and strategic themes
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    A[Next.js Frontend\nreact-chessboard + chess.js + Zustand] -->|REST + SSE| B[FastAPI Backend]
-    B --> C[Stockfish 18 Pool\npython-chess UCI]
-    B --> D[RAG Service\nSentenceTransformers + pgvector]
-    B --> E[LLM Fallback\nGroq -> Gemini -> OpenRouter]
-    B --> F[(Neon Postgres\nUsers/Games/Cache/BookChunks)]
+```text
+Frontend (Next.js 14 + react-chessboard + Tailwind)
+        |
+     REST + SSE
+        |
+Backend (FastAPI + Python)
+        |
+        +-- Stockfish 18 (async pool, UCI protocol)
+        +-- RAG pipeline (sentence-transformers + pgvector)
+        +-- LLM coaching (Groq -> Gemini -> OpenRouter fallback)
+        |
+Neon PostgreSQL (pgvector for embeddings)
 ```
 
 ## Tech Stack
 
-![Next.js](https://img.shields.io/badge/Next.js-14-black)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)
-![Python](https://img.shields.io/badge/Python-3.11-blue)
-![Tailwind](https://img.shields.io/badge/Tailwind-3.4-38bdf8)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-336791)
-![pgvector](https://img.shields.io/badge/pgvector-enabled-6b7280)
-
-## Screenshot
-
-![ChessCoach AI screenshot placeholder](./docs/screenshot-placeholder.png)
-
-## Features
-
-- Interactive chessboard with legal move validation (chess.js)
-- Real-time Stockfish SSE depth streaming
-- Position concept extraction (tactical + strategic)
-- LLM coaching explanation with 3-tier provider fallback
-- Book-based RAG references from public-domain chess books
-- Full game review from PGN or Lichess URL
-- JWT auth and saved game management
-- Analysis caching to reduce compute and API quota usage
+| Layer | Technology |
+|-------|------------|
+| Frontend | Next.js 14, TypeScript, react-chessboard, chess.js, Tailwind CSS, Zustand |
+| Backend | FastAPI, python-chess, Stockfish 18, sentence-transformers |
+| Database | Neon PostgreSQL + pgvector |
+| AI/ML | Groq API (LLaMA 3.3 70B), all-MiniLM-L6-v2 embeddings |
+| RAG Sources | Public-domain books + Wikipedia + Wikibooks |
 
 ## Quick Start
 
-1. Clone and enter project:
-   ```bash
-   git clone <your-repo-url>
-   cd chess-coach-ai
-   ```
-2. Create environment files:
-   - `backend/.env` from `backend/.env.example`
-   - `frontend/.env.local` from `frontend/.env.local.example`
-3. Run with Docker Compose:
-   ```bash
-   docker-compose up --build
-   ```
+### Prerequisites
 
-Frontend: `http://localhost:3000`  
-Backend: `http://localhost:7860`
+- Python 3.11+
+- Node.js 18+
+- Stockfish binary ([download](https://stockfishchess.org/download/))
+- Neon PostgreSQL account ([free](https://neon.tech))
+- Groq API key ([free](https://console.groq.com))
 
-## Local Backend (venv, Python 3.14)
+### Setup
 
-From a terminal:
-
-```powershell
-cd C:\Users\diaab\chess-coach-ai\backend
-py -3.14 -m venv venv
+```bash
+# Backend
+cd backend
+python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 7860
+cp .env.example .env
+python -m scripts.run_ingestion
+
+# Frontend
+cd frontend
+npm install
+cp .env.local.example .env.local
 ```
 
-For every new backend terminal session, always start with:
+### Run
 
-```powershell
-cd C:\Users\diaab\chess-coach-ai\backend
-venv\Scripts\activate
+```bash
+# Terminal 1: Backend
+cd backend && venv\Scripts\activate
+uvicorn app.main:app --port 7860
+
+# Terminal 2: Frontend
+cd frontend && npm run dev
 ```
 
-If activation worked, your prompt starts with `(venv)`.
+Open [http://localhost:3000](http://localhost:3000).
 
-## API Documentation
+## How It Works
 
-FastAPI docs: `http://localhost:7860/docs`
+1. You play a move on the board.
+2. Stockfish analyzes the position at depth 20 with top 3 lines.
+3. Concept extraction finds tactical motifs and strategic themes.
+4. RAG retrieval pulls relevant passages from the chess knowledge base.
+5. The LLM generates coaching in natural language.
+6. You get actionable feedback on why a move is strong or weak.
 
 ## Project Structure
 
 ```text
 chess-coach-ai/
-  frontend/        # Next.js 14 app
-  backend/         # FastAPI app + RAG ingestion scripts
-  docker-compose.yml
+  frontend/
+    src/app/
+    src/components/
+    src/stores/
+    src/lib/
+  backend/
+    app/api/
+    app/services/
+    app/core/
+    app/rag/
+    app/models/
+  docs/
+  README.md
 ```
 
-## Deployment Guide
+## Legal
 
-### Backend (Hugging Face Spaces - Docker)
+RAG content is sourced from:
 
-1. Create a new Docker Space.
-2. Push `backend/` as the Space repository content.
-3. Set environment variables in Space settings.
-4. Space serves FastAPI on port `7860`.
-
-### Frontend (Cloudflare Pages)
-
-1. Connect your Git repository to Cloudflare Pages.
-2. Build command: `npm run build`
-3. Output directory: `.next`
-4. Set `NEXT_PUBLIC_API_URL` to your deployed backend URL.
+- Public-domain books
+- Lichess public data
+- Wikipedia/Wikibooks content
 
 ## License
 

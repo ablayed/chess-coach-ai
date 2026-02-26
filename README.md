@@ -1,14 +1,23 @@
 # ChessCoach AI
 
-## Live Demo
+## 🌐 Live Demo
 
-**[Try it here](https://chesscoach-ai.pages.dev)**
+**[Try it here ](https://chesscoach-ai.pages.dev)**
 
 **The chess engine that explains the *why*.**
 
 ChessCoach AI combines Stockfish engine analysis with chess book knowledge and LLM-powered coaching to explain chess positions in natural language, not just what the best move is, but *why* it is the best move.
 
-![Screenshot](docs/screenshot.png)
+## Production Screenshots
+
+### Home (Board + Analysis + Coaching)
+![Home](docs/home-page.png)
+
+### Review (Game Summary)
+![Review](docs/review-page.png)
+
+### Mobile View
+![Mobile](docs/mobile-view.png)
 
 ## Features
 
@@ -112,6 +121,15 @@ chess-coach-ai/
   docs/
   README.md
 ```
+
+## Report Structure
+
+- Problem Formalisation - what exactly are we solving and why
+- Literature Context - what approaches exist, why we chose ours
+- Model Design & Preprocessing - architecture decisions justified
+- Training & Validation - splits, loss, metrics, hyperparameter strategy
+- Results & Critical Analysis - tables, plots, comparison, failure modes, overfitting checks
+- Conclusion & Limitations - honest summary
 
 ## Legal
 

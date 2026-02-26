@@ -1,4 +1,5 @@
 import logging
+import random
 
 import httpx
 
@@ -14,6 +15,9 @@ class LLMService:
         self.client = httpx.AsyncClient(timeout=30.0)
 
     async def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> str:
+        temperature = 0.7 + random.uniform(-0.1, 0.15)
+        temperature = max(0.6, min(0.85, temperature))
+
         providers = [
             ("groq", self._call_groq),
             ("gemini", self._call_gemini),
@@ -23,7 +27,7 @@ class LLMService:
         last_error: Exception | None = None
         for name, call_fn in providers:
             try:
-                result = await call_fn(system_prompt, user_prompt, max_tokens)
+                result = await call_fn(system_prompt, user_prompt, max_tokens, temperature)
                 logger.info("LLM response from %s (%s chars)", name, len(result))
                 return result
             except Exception as exc:
@@ -32,7 +36,7 @@ class LLMService:
 
         raise RuntimeError(f"All LLM providers failed. Last error: {last_error}")
 
-    async def _call_groq(self, system: str, user: str, max_tokens: int) -> str:
+    async def _call_groq(self, system: str, user: str, max_tokens: int, temperature: float) -> str:
         if not settings.GROQ_API_KEY:
             raise ValueError("GROQ_API_KEY not configured")
 
@@ -49,7 +53,7 @@ class LLMService:
                     {"role": "user", "content": user},
                 ],
                 "max_tokens": max_tokens,
-                "temperature": 0.7,
+                "temperature": temperature,
             },
         )
 
@@ -61,7 +65,7 @@ class LLMService:
         data = resp.json()
         return data["choices"][0]["message"]["content"]
 
-    async def _call_gemini(self, system: str, user: str, max_tokens: int) -> str:
+    async def _call_gemini(self, system: str, user: str, max_tokens: int, temperature: float) -> str:
         if not settings.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY not configured")
 
@@ -73,7 +77,7 @@ class LLMService:
             json={
                 "systemInstruction": {"parts": [{"text": system}]},
                 "contents": [{"parts": [{"text": user}]}],
-                "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.7},
+                "generationConfig": {"maxOutputTokens": max_tokens, "temperature": temperature},
             },
         )
         if resp.status_code == 429:
@@ -83,7 +87,7 @@ class LLMService:
         data = resp.json()
         return data["candidates"][0]["content"]["parts"][0]["text"]
 
-    async def _call_openrouter(self, system: str, user: str, max_tokens: int) -> str:
+    async def _call_openrouter(self, system: str, user: str, max_tokens: int, temperature: float) -> str:
         if not settings.OPENROUTER_API_KEY:
             raise ValueError("OPENROUTER_API_KEY not configured")
 
@@ -101,6 +105,7 @@ class LLMService:
                     {"role": "user", "content": user},
                 ],
                 "max_tokens": max_tokens,
+                "temperature": temperature,
             },
         )
         if resp.status_code == 429:

@@ -14,10 +14,12 @@ from app.core.concept_extractor import classify_move
 router = APIRouter()
 
 
-def _fen_hash(fen: str, player_level: str) -> str:
+def coaching_cache_key(fen: str, user_move: str | None, player_level: str) -> str:
+    """Generate a cache key specific to board position, move choice, and player level."""
     parts = fen.split()
     core = " ".join(parts[:4]) if len(parts) >= 4 else fen
-    return hashlib.sha256(f"{core}|{player_level}".encode("utf-8")).hexdigest()
+    key_input = f"{core}|{user_move or 'none'}|{player_level}"
+    return hashlib.sha256(key_input.encode("utf-8")).hexdigest()
 
 
 @router.post("/coach/explain", response_model=CoachResponse)
@@ -31,7 +33,7 @@ async def coach_explain(
         raise HTTPException(status_code=400, detail="Invalid FEN") from exc
 
     fen = board.fen()
-    fen_hash = _fen_hash(fen, request.player_level)
+    fen_hash = coaching_cache_key(fen, request.user_move, request.player_level)
 
     cp_loss = max(0.0, request.evaluation_before - request.evaluation_after) if request.user_move else 0.0
     classification = classify_move(cp_loss)

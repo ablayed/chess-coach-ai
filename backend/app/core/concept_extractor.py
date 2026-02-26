@@ -11,6 +11,8 @@ def extract_concepts(board: chess.Board, eval_info: dict) -> dict[str, Any]:
         "tactical_motifs": _detect_tactics(board),
         "strategic_themes": _detect_strategy(board),
         "king_safety": _assess_king_safety(board),
+        "tension": _detect_tension(board),
+        "piece_placement": _notable_pieces(board),
     }
 
 
@@ -152,6 +154,56 @@ def _detect_strategy(board: chess.Board) -> list[str]:
             break
 
     return sorted(set(themes))
+
+
+def _detect_tension(board: chess.Board) -> str:
+    """Detect how tactically tense the position is."""
+    captures = [move for move in board.legal_moves if board.is_capture(move)]
+    checks = [move for move in board.legal_moves if board.gives_check(move)]
+
+    if len(checks) >= 2:
+        return "high_tension_multiple_checks"
+    if len(captures) >= 5:
+        return "high_tension_many_captures"
+    if len(captures) == 0:
+        return "quiet_position"
+    return "moderate_tension"
+
+
+def _notable_pieces(board: chess.Board) -> list[str]:
+    """Identify piece placements that make this position unique."""
+    notable: list[str] = []
+
+    for color in (chess.WHITE, chess.BLACK):
+        color_name = "White" if color == chess.WHITE else "Black"
+
+        for square in board.pieces(chess.KNIGHT, color):
+            rank = chess.square_rank(square)
+            is_advanced = (color == chess.WHITE and rank >= 4) or (color == chess.BLACK and rank <= 3)
+            if is_advanced:
+                notable.append(f"{color_name}_knight_outpost_{chess.square_name(square)}")
+
+        for square in board.pieces(chess.ROOK, color):
+            file_idx = chess.square_file(square)
+            pawns_on_file = False
+            for rank in range(8):
+                piece = board.piece_at(chess.square(file_idx, rank))
+                if piece and piece.piece_type == chess.PAWN:
+                    pawns_on_file = True
+                    break
+            if not pawns_on_file:
+                notable.append(f"{color_name}_rook_open_file_{chess.FILE_NAMES[file_idx]}")
+
+        bishops = board.pieces(chess.BISHOP, color)
+        if len(bishops) >= 2:
+            notable.append(f"{color_name}_bishop_pair")
+
+        for square in board.pieces(chess.ROOK, color):
+            rank = chess.square_rank(square)
+            if (color == chess.WHITE and rank == 6) or (color == chess.BLACK and rank == 1):
+                notable.append(f"{color_name}_rook_seventh_rank")
+
+    return sorted(set(notable))
 
 
 def _assess_king_safety(board: chess.Board) -> str:

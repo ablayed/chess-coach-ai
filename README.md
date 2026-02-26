@@ -11,13 +11,13 @@ ChessCoach AI combines Stockfish engine analysis with chess book knowledge and L
 ## Production Screenshots
 
 ### Home (Board + Analysis + Coaching)
-![Home](docs/home-page.png)
+![Home](docs/Capture%20d%27%C3%A9cran%202026-02-25%20160918.png)
 
 ### Review (Game Summary)
-![Review](docs/review-page.png)
+![Review](docs/Capture%20d%27%C3%A9cran%202026-02-25%20161100.png)
 
 ### Mobile View
-![Mobile](docs/mobile-view.png)
+![Mobile](docs/Capture%20d%27%C3%A9cran%202026-02-25%20161324.png)
 
 ## Features
 

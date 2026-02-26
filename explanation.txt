@@ -1,0 +1,257 @@
+ChessCoach AI Repository Explanation
+====================================
+
+Repository snapshot scope: this document covers all 107 git-tracked files currently in this repository.
+
+1) What this repository is
+--------------------------
+ChessCoach AI is a full-stack chess coaching application.
+It combines:
+- A Next.js frontend for interactive board play and review UI.
+- A FastAPI backend for Stockfish analysis, RAG retrieval, and LLM explanations.
+- A PostgreSQL/pgvector database (Neon-compatible) for cached analysis and embedded chess knowledge.
+
+Main user outcomes:
+- Analyze a live position with engine lines and evaluation.
+- Ask for natural-language coaching for a move.
+- Import full games (PGN or Lichess URL) for move-by-move review and summary.
+- Save reviewed games per authenticated user.
+
+
+2) Top-level repository layout
+------------------------------
+- `README.md`: Main project documentation, features, architecture, screenshots, setup notes.
+- `.gitignore`: Root ignore rules for env files, build artifacts, local data dumps, IDE files.
+- `docker-compose.yml`: Local development stack (backend on 7860, frontend on 3000).
+- `backend/`: FastAPI backend service and RAG ingestion pipeline.
+- `frontend/`: Next.js App Router frontend.
+- `docs/`: Screenshot assets and placeholder image.
+
+
+3) Backend (`backend/`) complete walkthrough
+--------------------------------------------
+
+3.1 Backend runtime and deployment files
+- `backend/Dockerfile`: Production Docker image (Python 3.12 slim, installs stockfish, pre-downloads embedding model, runs uvicorn on 7860).
+- `backend/.dockerignore`: Excludes local virtualenv/cache/env/book txt/docs/tests from Docker context.
+- `backend/.env.example`: Example runtime variables (DB URL, LLM keys, JWT secret, CORS origins).
+- `backend/README.md`: Backend-specific quickstart and ingestion/test notes.
+- `backend/requirements.txt`: Python dependencies (FastAPI, SQLAlchemy async, pgvector, sentence-transformers, auth libs, etc.).
+- `backend/data/books/.gitkeep`: Keeps data directory in git without shipping the full corpus.
+
+3.2 App entrypoint and config
+- `backend/app/main.py`: FastAPI app wiring, startup/shutdown lifecycle, CORS middleware, route registration, and `/health` endpoint.
+- `backend/app/config.py`: Environment-driven settings model (DB, API keys, JWT, stockfish tuning, CORS); includes stockfish path auto-discovery fallback logic.
+- `backend/app/__init__.py`: Package marker for backend app module.
+
+3.3 Database layer
+- `backend/app/db/session.py`: Async SQLAlchemy engine/session factory and `get_db` dependency.
+- `backend/app/db/migrations.py`: Creates pgvector extension and all ORM tables.
+- `backend/app/db/__init__.py`: DB package marker.
+
+3.4 ORM models
+- `backend/app/models/database.py`: SQLAlchemy models:
+  - `User` (credentials profile),
+  - `Game` (saved reviewed games),
+  - `BookChunk` (RAG text chunks + embeddings + concept tags),
+  - `AnalysisCache` (analysis/coaching cache by key).
+- `backend/app/models/schemas.py`: Pydantic request/response contracts for analysis, coaching, review, auth, and saved games.
+- `backend/app/models/__init__.py`: Models package marker.
+
+3.5 API dependency helpers
+- `backend/app/api/deps.py`: Pulls stockfish pool from app state, validates bearer token, and provides current/optional user.
+- `backend/app/api/__init__.py`: API package marker.
+- `backend/app/api/routes/__init__.py`: Re-exports route modules.
+
+3.6 API routes
+- `backend/app/api/routes/analysis.py`:
+  - POST `/api/v1/analyze`: Analyze FEN with cache + stockfish.
+  - GET `/api/v1/analyze/stream`: SSE progressive analysis stream.
+  - Adds concept extraction to analysis response.
+- `backend/app/api/routes/coaching.py`:
+  - POST `/api/v1/coach/explain`: Generates coaching text for a position.
+  - Uses cache key that includes FEN core + user move + player level.
+- `backend/app/api/routes/review.py`:
+  - POST `/api/v1/review/game`: Full game review from PGN/Lichess.
+  - GET `/api/v1/review/{game_id}`: Retrieve saved review payload.
+  - Calculates move accuracy/classification, attaches coaching on critical moves, and builds overall summary.
+- `backend/app/api/routes/auth.py`:
+  - POST `/api/v1/auth/register`
+  - POST `/api/v1/auth/login`
+  - Handles credential validation, hashing, JWT creation.
+- `backend/app/api/routes/games.py`:
+  - POST `/api/v1/games`: Save reviewed game for logged-in user.
+  - GET `/api/v1/games`: List current user games.
+  - GET `/api/v1/games/{game_id}`: Retrieve one saved game.
+  - DELETE `/api/v1/games/{game_id}`: Delete one saved game.
+
+3.7 Core chess/coaching logic
+- `backend/app/core/stockfish_pool.py`: Async pool of UCI stockfish engines with `analyze` and streaming analyze methods.
+- `backend/app/core/concept_extractor.py`: Position feature extraction:
+  - phase detection,
+  - tactical motifs,
+  - strategic themes,
+  - king safety,
+  - tension level,
+  - notable piece placements,
+  - plus move quality classification by cp loss.
+- `backend/app/core/prompt_templates.py`:
+  - Coaching system/user prompt templates.
+  - `build_board_narrative` for concrete plain-English board context.
+  - `_build_task_instruction` for classification-specific coaching intent.
+- `backend/app/core/__init__.py`: Core package marker.
+
+3.8 Service layer
+- `backend/app/services/stockfish_service.py`: Thin service wrapper over stockfish pool.
+- `backend/app/services/auth_service.py`: Password hashing/verification + JWT encode/decode.
+- `backend/app/services/rag_service.py`: Embedding model singleton and pgvector similarity retrieval query.
+- `backend/app/services/llm_service.py`: Multi-provider LLM fallback (Groq -> Gemini -> OpenRouter) with slight temperature variation for wording diversity.
+- `backend/app/services/coaching_service.py`:
+  - Builds position-specific RAG query and opening detection.
+  - Builds board narrative and detailed prompt input.
+  - Retrieves passages and generates final coaching explanation.
+  - Returns explanation, references, concepts, and move classification.
+- `backend/app/services/__init__.py`: Services package marker.
+
+3.9 RAG pipeline modules
+- `backend/app/rag/sources.py`: Full source catalog (Gutenberg, Archive.org, Wikipedia, Wikibooks, Lichess studies/puzzles) with metadata.
+- `backend/app/rag/downloaders.py`: Download/cleanup utilities for each source type; includes zstd puzzle dataset handling.
+- `backend/app/rag/chunker.py`: OCR normalization + chunking strategy with overlap and heading-aware segmentation.
+- `backend/app/rag/retriever.py`: Thin pass-through to main `RAGService.retrieve`.
+- `backend/app/rag/ingest.py`: End-to-end ingestion orchestration:
+  - source loading,
+  - chunking,
+  - concept tagging,
+  - embedding generation,
+  - DB insertion/upsert behavior.
+- `backend/app/rag/__init__.py`: RAG package marker.
+
+3.10 Backend scripts
+- `backend/scripts/download_books.py`: Download public-domain book sources to local data folder.
+- `backend/scripts/run_ingestion.py`: Pipeline runner (download + ingest + retrieval sanity checks).
+- `backend/scripts/test_db.py`: Database and extension readiness test.
+- `backend/scripts/test_embeddings.py`: Embedding model load/encode smoke test.
+- `backend/scripts/test_stockfish.py`: Stockfish connectivity and move-line test.
+- `backend/scripts/test_llm.py`: LLM generation smoke test.
+- `backend/scripts/test_full_pipeline.py`: Full integration path test (engine -> concepts -> rag -> llm).
+- `backend/scripts/verify_rag_queries.py`: Retrieval quality check for standard query set.
+
+
+4) Frontend (`frontend/`) complete walkthrough
+----------------------------------------------
+
+4.1 Frontend runtime and build config
+- `frontend/package.json`: Next.js app scripts and dependency declarations.
+- `frontend/package-lock.json`: Lockfile for exact npm dependency graph.
+- `frontend/next.config.mjs`: Static export config (`output: export`, unoptimized images, trailing slash).
+- `frontend/tsconfig.json`: Strict TypeScript config with `@/*` alias.
+- `frontend/tailwind.config.ts`: Tailwind scan paths and theme extensions.
+- `frontend/postcss.config.js`: Tailwind + autoprefixer plugin wiring.
+- `frontend/.eslintrc.json`: Next core web vitals lint baseline.
+- `frontend/.env.local.example`: Local backend base URL example.
+- `frontend/next-env.d.ts`: Next.js generated TS declarations.
+- `frontend/Dockerfile.dev`: Dev container Dockerfile for `npm run dev`.
+- `frontend/public/favicon.ico`: Browser favicon asset.
+
+4.2 App Router pages
+- `frontend/src/app/layout.tsx`: Global shell, metadata, providers, and site header.
+- `frontend/src/app/providers.tsx`: Client startup hook for auth-store initialization.
+- `frontend/src/app/globals.css`: Global styles, dark background gradients, scrollbar styles.
+- `frontend/src/app/page.tsx`: Main live-analysis page (board + analysis + coaching).
+- `frontend/src/app/analyze/page.tsx`: Dedicated position analyzer with FEN input.
+- `frontend/src/app/review/page.tsx`: Game review workflow (import, progress, save, replay).
+- `frontend/src/app/games/page.tsx`: User saved-games listing page.
+- `frontend/src/app/auth/login/page.tsx`: Login page wrapper.
+- `frontend/src/app/auth/register/page.tsx`: Register page wrapper.
+
+4.3 State stores
+- `frontend/src/stores/useGameStore.ts`: Chess state machine (fen, move history, navigation, pgn loading, orientation, reset/undo).
+- `frontend/src/stores/useAnalysisStore.ts`: Analysis/coaching state (streaming depth, errors, coaching payloads, hint-arrow visibility toggle).
+- `frontend/src/stores/useAuthStore.ts`: Auth/session state and token persistence in localStorage.
+
+4.4 API and utility libraries
+- `frontend/src/lib/api.ts`: HTTP client wrapper, bearer token support, typed JSON parsing, custom API errors.
+- `frontend/src/lib/sse.ts`: EventSource wrapper for streaming analysis updates.
+- `frontend/src/lib/chess-utils.ts`: FEN validation, lichess ID parsing, eval formatting, capture helpers, promotion helpers.
+- `frontend/src/lib/constants.ts`: UI constant maps (move class colors/badges, defaults).
+- `frontend/src/lib/dom-utils.ts`: Input-focus detection helper for keyboard nav safety.
+- `frontend/src/hooks/useBoardWidth.ts`: Responsive board size hook.
+
+4.5 Type contracts
+- `frontend/src/types/api.ts`: Frontend-side TS interfaces mirroring backend API contracts.
+- `frontend/src/types/chess.ts`: Chess-specific shared types (move history entries, board orientation, etc.).
+
+4.6 Reusable UI components
+- `frontend/src/components/ui/Button.tsx`: Variant/size button primitive.
+- `frontend/src/components/ui/Card.tsx`: Card container primitive.
+- `frontend/src/components/ui/Input.tsx`: Styled input with optional error state.
+- `frontend/src/components/ui/Loading.tsx`: Spinner + label helper.
+- `frontend/src/components/ui/Modal.tsx`: Keyboard-dismiss modal component.
+- `frontend/src/components/ui/Toast.tsx`: Status toast with info/success/error tones.
+
+4.7 Feature components
+- `frontend/src/components/navigation/SiteHeader.tsx`: Main nav bar with auth-aware links and mobile menu.
+- `frontend/src/components/board/ChessBoard.tsx`: Interactive chessboard (drag/drop, promotions, highlights, optional engine hint arrow).
+- `frontend/src/components/board/BoardControls.tsx`: Flip/undo/reset/import and show/hide engine hint toggle.
+- `frontend/src/components/board/MoveList.tsx`: Scrollable move list with keyboard navigation and classification dots.
+- `frontend/src/components/board/EvalBar.tsx`: Vertical engine evaluation bar.
+- `frontend/src/components/board/CapturedPieces.tsx`: Captured-material display.
+- `frontend/src/components/analysis/AnalysisPanel.tsx`: Engine lines, depth, concepts panel.
+- `frontend/src/components/analysis/CoachingPanel.tsx`: Coaching output, references, retry and loading states.
+- `frontend/src/components/analysis/MoveClassBadge.tsx`: Move quality badge rendering.
+- `frontend/src/components/review/GameImport.tsx`: PGN/Lichess import UI with basic validation.
+- `frontend/src/components/review/GameSummary.tsx`: Accuracy and thematic summary cards.
+- `frontend/src/components/review/ReviewBoard.tsx`: Replay board + move list + per-move coaching.
+- `frontend/src/components/review/ReviewNav.tsx`: Optional review navigation controls with autoplay support.
+- `frontend/src/components/auth/LoginForm.tsx`: Login form + error handling + redirect.
+- `frontend/src/components/auth/RegisterForm.tsx`: Registration form + validation + redirect.
+
+
+5) Docs and static assets
+-------------------------
+- `docs/Capture d'ecran 2026-02-25 160918.png`: Production screenshot asset (home view).
+- `docs/Capture d'ecran 2026-02-25 161100.png`: Production screenshot asset (review view).
+- `docs/Capture d'ecran 2026-02-25 161324.png`: Production screenshot asset (mobile view).
+- `docs/screenshot.png`: Legacy tiny placeholder png.
+- `docs/screenshot-placeholder.png`: Empty placeholder file.
+
+
+6) End-to-end runtime flow
+--------------------------
+1. Frontend loads page and initializes auth state from localStorage.
+2. User plays a move or loads FEN/PGN.
+3. Frontend calls backend `/api/v1/analyze` and/or `/api/v1/analyze/stream`.
+4. Backend uses Stockfish pool to evaluate and returns lines + concepts.
+5. If coaching requested, backend builds a position-specific RAG query, retrieves book chunks via pgvector, builds a detailed board-aware prompt, and calls LLM provider fallback chain.
+6. Frontend renders explanation + references and optional hint arrow.
+7. For review mode, backend iterates game moves, classifies mistakes, and returns full move-by-move summary; frontend can save this through authenticated games endpoints.
+
+
+7) Caching and performance behavior
+-----------------------------------
+- Analysis cache (`analysis.py`) uses FEN core hash and depth to reuse Stockfish results.
+- Coaching cache (`coaching.py`) uses FEN core + user move + player level for specificity.
+- RAG model loading is singleton-based in `rag_service.py` to avoid repeated model init.
+- LLM generation uses provider fallback and slight temperature jitter for wording diversity.
+
+
+8) Authentication model
+-----------------------
+- JWT bearer tokens created by backend auth routes.
+- Password hashing with bcrypt via passlib.
+- Frontend persists token/user in localStorage and injects Authorization header via API client.
+- Protected game routes require decoded token + user ownership checks.
+
+
+9) Local development and deployment model
+-----------------------------------------
+- Local dev: `docker-compose.yml` runs backend and frontend with source mounts.
+- Backend production target: Hugging Face Spaces Docker (port 7860).
+- Frontend production target: Cloudflare Pages static export (`frontend/out`).
+
+
+10) Notes about non-source files
+--------------------------------
+- `frontend/package-lock.json` is generated dependency metadata; it should be committed for reproducible installs.
+- Screenshot/image files are binary assets and are referenced from README.
+- The untracked local directory `chesscoach-ai/` in your workspace is a separate HF Space clone, not part of this git-tracked repository.

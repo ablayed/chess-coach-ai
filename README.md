@@ -1,5 +1,9 @@
 # ChessCoach AI
 
+## Live Demo
+
+**[Try it here](https://chesscoach-ai.pages.dev)**
+
 **The chess engine that explains the *why*.**
 
 ChessCoach AI combines Stockfish engine analysis with chess book knowledge and LLM-powered coaching to explain chess positions in natural language, not just what the best move is, but *why* it is the best move.

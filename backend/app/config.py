@@ -20,21 +20,24 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_HOURS: int = 72
 
     # Stockfish
-    STOCKFISH_PATH: str = ""
+    STOCKFISH_PATH: str = "/usr/games/stockfish"
     STOCKFISH_DEPTH: int = 20
     STOCKFISH_HASH_MB: int = 128
     STOCKFISH_THREADS: int = 1
     STOCKFISH_POOL_SIZE: int = 2
 
     # App
-    CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost,capacitor://localhost"
 
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",")]
 
     def model_post_init(self, __context) -> None:  # type: ignore[override]
-        if self.STOCKFISH_PATH:
+        if "STOCKFISH_PATH" in self.model_fields_set and self.STOCKFISH_PATH:
+            return
+
+        if self.STOCKFISH_PATH and os.path.exists(self.STOCKFISH_PATH):
             return
 
         discovered = shutil.which("stockfish")

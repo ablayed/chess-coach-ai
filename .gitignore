@@ -2,20 +2,21 @@
 node_modules/
 __pycache__/
 *.pyc
-.venv/
 venv/
+.venv/
 
 # Env files
 .env
 .env.local
+.env.production
 
-# Build
+# Build outputs
 .next/
 out/
 dist/
 build/
 
-# Data
+# Data files (already in DB)
 backend/data/books/*.txt
 backend/data/books/*.zst
 
@@ -27,3 +28,6 @@ backend/data/books/*.zst
 # OS
 .DS_Store
 Thumbs.db
+
+# HF Space (separate repo)
+hf-space/

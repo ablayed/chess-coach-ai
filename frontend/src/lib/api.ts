@@ -1,6 +1,7 @@
 import type { ApiErrorResponse } from "@/types/api";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:7860";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:7860";
+export const API_BASE_URL = BASE_URL;
 
 export class ApiError extends Error {
   readonly status: number;

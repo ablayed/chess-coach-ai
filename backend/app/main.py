@@ -7,7 +7,7 @@ from app.api.routes import analysis, auth, coaching, games, review
 from app.config import settings
 from app.core.stockfish_pool import StockfishPool
 from app.db.migrations import create_tables
-from app.db.session import engine
+from app.db.session import async_session, engine
 from app.services.coaching_service import llm_service
 
 stockfish_pool: StockfishPool | None = None
@@ -64,10 +64,36 @@ app.include_router(games.router, prefix="/api/v1/games", tags=["games"])
 
 
 @app.get("/health")
-async def health() -> dict[str, int | str]:
-    stockfish_available = "yes" if getattr(app.state, "stockfish_pool", None) is not None else "no"
+async def health():
+    sf_ok = getattr(app.state, "stockfish_pool", None) is not None
+    db_ok = False
+    try:
+        from sqlalchemy import text
+
+        async with async_session() as db:
+            await db.execute(text("SELECT 1"))
+            db_ok = True
+    except Exception:  # noqa: BLE001
+        db_ok = False
+
+    chunks_count = 0
+    try:
+        from sqlalchemy import text
+
+        async with async_session() as db:
+            result = await db.execute(text("SELECT COUNT(*) FROM book_chunks"))
+            chunks_count = result.scalar() or 0
+    except Exception:  # noqa: BLE001
+        chunks_count = 0
+
     return {
-        "status": "ok",
-        "stockfish_pool_size": settings.STOCKFISH_POOL_SIZE,
-        "stockfish_available": stockfish_available,
+        "status": "ok" if (sf_ok and db_ok) else "degraded",
+        "stockfish": "ready" if sf_ok else "unavailable",
+        "database": "connected" if db_ok else "disconnected",
+        "rag_chunks": chunks_count,
+        "llm_providers": {
+            "groq": bool(settings.GROQ_API_KEY),
+            "gemini": bool(settings.GEMINI_API_KEY),
+            "openrouter": bool(settings.OPENROUTER_API_KEY),
+        },
     }

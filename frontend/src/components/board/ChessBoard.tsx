@@ -60,6 +60,7 @@ export function ChessBoard({ interactive = true, bestMoveOverride, onMovePlayed 
 
   const analyzePosition = useAnalysisStore((state) => state.analyzePosition);
   const currentAnalysis = useAnalysisStore((state) => state.currentAnalysis);
+  const showArrows = useAnalysisStore((state) => state.showEngineArrows);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -86,17 +87,17 @@ export function ChessBoard({ interactive = true, bestMoveOverride, onMovePlayed 
   const bestMove = bestMoveOverride ?? currentAnalysis?.best_moves[0]?.move ?? null;
   const turn = chess.turn();
 
-  const bestArrow = useMemo<Array<[Square, Square]>>(() => {
-    if (!bestMove || bestMove.length < 4) {
-      return [] as Array<[Square, Square]>;
+  const arrows = useMemo<Array<[Square, Square, string]>>(() => {
+    if (!showArrows || !bestMove || bestMove.length < 4) {
+      return [];
     }
     const from = bestMove.slice(0, 2) as Square;
     const to = bestMove.slice(2, 4) as Square;
     if (!SQUARES.includes(from) || !SQUARES.includes(to)) {
-      return [] as Array<[Square, Square]>;
+      return [];
     }
-    return [[from, to]];
-  }, [bestMove]);
+    return [[from, to, "rgba(255, 170, 0, 0.7)"]];
+  }, [bestMove, showArrows]);
 
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, Record<string, string | number>> = {};
@@ -196,7 +197,7 @@ export function ChessBoard({ interactive = true, bestMoveOverride, onMovePlayed 
         isDraggablePiece={({ piece }) => interactive && Boolean(piece) && piece.charAt(0).toLowerCase() === turn}
         boardOrientation={orientation}
         boardWidth={boardWidth}
-        customArrows={bestArrow}
+        customArrows={arrows}
         customSquareStyles={customSquareStyles}
         showBoardNotation
       />

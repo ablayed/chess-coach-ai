@@ -10,10 +10,12 @@ interface AnalysisState {
   coaching: CoachResponse | null;
   isLoadingCoaching: boolean;
   streamingDepth: number;
+  showEngineArrows: boolean;
   error: string | null;
   sseCleanup: SSECleanup | null;
   analyzePosition: (fen: string, depth?: number, numLines?: number) => Promise<void>;
   getCoaching: (payload: CoachRequest) => Promise<void>;
+  toggleEngineArrows: () => void;
   clearAnalysis: () => void;
 }
 
@@ -55,6 +57,7 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
   coaching: null,
   isLoadingCoaching: false,
   streamingDepth: 0,
+  showEngineArrows: false,
   error: null,
   sseCleanup: null,
 
@@ -137,6 +140,10 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
       const message = error instanceof ApiError ? error.detail : "Coaching request failed";
       set({ isLoadingCoaching: false, error: message });
     }
+  },
+
+  toggleEngineArrows: () => {
+    set((state) => ({ showEngineArrows: !state.showEngineArrows }));
   },
 
   clearAnalysis: () => {

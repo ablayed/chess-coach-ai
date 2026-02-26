@@ -124,12 +124,45 @@ chess-coach-ai/
 
 ## Report Structure
 
-- Problem Formalisation - what exactly are we solving and why
-- Literature Context - what approaches exist, why we chose ours
-- Model Design & Preprocessing - architecture decisions justified
-- Training & Validation - splits, loss, metrics, hyperparameter strategy
-- Results & Critical Analysis - tables, plots, comparison, failure modes, overfitting checks
-- Conclusion & Limitations - honest summary
+### 1) Problem Formalisation
+
+Define the exact task: helping players understand the reasons behind engine recommendations, not only the best move. Clarify inputs (FEN/PGN), outputs (best lines, coaching text, review metrics), user groups (beginner/intermediate), and measurable goals (latency, explanation usefulness, analysis quality).
+
+### 2) Literature Context
+
+Summarize prior work in three families: pure engine analysis (accurate but not pedagogical), annotation systems (human-readable but limited coverage), and RAG/LLM coaching approaches (natural language but reliability risk). Explain the chosen hybrid approach (Stockfish + RAG + LLM) as a tradeoff between tactical strength and teaching clarity.
+
+### 3) Model Design & Preprocessing
+
+Justify architecture decisions:
+- Stockfish for objective evaluation and principal variations.
+- Concept extraction layer for tactical/strategic tags.
+- RAG over curated chess sources to ground explanations.
+- LLM generation with provider fallback.
+Describe preprocessing: text cleaning, chunking, embedding model choice (`all-MiniLM-L6-v2`), and pgvector indexing strategy.
+
+### 4) Training & Validation
+
+Document data splits and evaluation plan:
+- Ingestion corpus split/checks for retrieval quality.
+- Prompt and generation validation on representative positions.
+- Metrics: response latency, retrieval relevance, coaching coherence, and review stability.
+- Hyperparameter strategy: engine depth, retrieval `top_k`, and prompt controls.
+
+### 5) Results & Critical Analysis
+
+Present quantitative and qualitative results:
+- Tables/plots for latency and endpoint reliability.
+- Example comparisons: engine-only output vs coached explanation.
+- Failure modes: ambiguous positions, hallucinated advice, weak retrieval matches.
+- Overfitting checks: robustness across opening, middlegame, and endgame scenarios.
+
+### 6) Conclusion & Limitations
+
+Provide an honest final summary:
+- What works well today (accurate analysis + readable coaching).
+- Current limits (cold starts, LLM variability, dependency on source coverage).
+- Practical next steps (better evaluation set, caching, stronger monitoring, UX for slow first request).
 
 ## Legal
 
